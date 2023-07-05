@@ -4,17 +4,19 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
+	"net/url"
 
 	"github.com/PuerkitoBio/goquery"
 )
 
-func main() {
-	url := "http://google.com"
+func crawlWebsite(urlString string, visited map[string]bool) {
 
-	var extractedURLs []string
+	parsedURL, err := url.Parse(urlString)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	response, err := http.Get(url)
+	response, err := http.Get(parsedURL.String())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -25,43 +27,27 @@ func main() {
 		log.Fatal(err)
 	}
 
+	fmt.Println(parsedURL.String())
+
 	doc.Find("a").Each(func(index int, element *goquery.Selection) {
+
 		href, exists := element.Attr("href")
 		if exists {
-			if strings.HasPrefix(href, "http") {
-				extractedURLs = append(extractedURLs, href)
-			} else {
-				absoluteURL := url + href
-				extractedURLs = append(extractedURLs, absoluteURL)
+
+			absoluteURL := parsedURL.ResolveReference(&url.URL{Path: href}).String()
+
+			if !visited[absoluteURL] {
+				visited[absoluteURL] = true
+				crawlWebsite(absoluteURL, visited)
 			}
 		}
 	})
+}
 
-	doc.Find("link").Each(func(index int, element *goquery.Selection) {
-		href, exists := element.Attr("href")
-		if exists {
-			if strings.HasPrefix(href, "http") {
-				extractedURLs = append(extractedURLs, href)
-			} else {
-				absoluteURL := url + href
-				extractedURLs = append(extractedURLs, absoluteURL)
-			}
-		}
-	})
+func main() {
+	startURL := "https://jsonplaceholder.typicode.com"
 
-	doc.Find("script").Each(func(index int, element *goquery.Selection) {
-		src, exists := element.Attr("src")
-		if exists {
-			if strings.HasPrefix(src, "http") {
-				extractedURLs = append(extractedURLs, src)
-			} else {
-				absoluteURL := url + src
-				extractedURLs = append(extractedURLs, absoluteURL)
-			}
-		}
-	})
+	visited := make(map[string]bool)
 
-	for _, link := range extractedURLs {
-		fmt.Println(link)
-	}
+	crawlWebsite(startURL, visited)
 }
